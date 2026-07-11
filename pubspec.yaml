@@ -4,9 +4,9 @@ description: >-
   Provides non-custodial wallet creation, atomic split payments, escrow
   payments with timeout protection, and wallet recovery.
 version: 0.1.0
-homepage: https://github.com/payrogen/payrogen-sdk-flutter
-repository: https://github.com/payrogen/payrogen-sdk-flutter
-issue_tracker: https://github.com/payrogen/payrogen-sdk-flutter/issues
+homepage: https://github.com/payrogen/payrogen_sdk
+repository: https://github.com/payrogen/payrogen_sdk
+issue_tracker: https://github.com/payrogen/payrogen_sdk/issues
 topics:
   - payments
   - solana
