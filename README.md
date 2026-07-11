@@ -1,6 +1,6 @@
 # PayRogen SDK for Flutter
 
-A zero-knowledge, zero-custody payment gateway SDK for Flutter/Dart applications.
+Non-custody, Instant settlement payment gateway SDK for Flutter/Dart applications.
 
 ## Features
 
