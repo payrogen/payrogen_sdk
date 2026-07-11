@@ -1,0 +1,31 @@
+name: payrogen_sdk
+description: >-
+  Flutter SDK for PayRogen Non-custody, instant settlement payment gateway.
+  Provides non-custodial wallet creation, atomic split payments, escrow
+  payments with timeout protection, and wallet recovery.
+version: 0.1.0
+homepage: https://github.com/payrogen/payrogen-sdk-flutter
+repository: https://github.com/payrogen/payrogen-sdk-flutter
+issue_tracker: https://github.com/payrogen/payrogen-sdk-flutter/issues
+topics:
+  - payments
+  - solana
+  - blockchain
+  - escrow
+  - wallet
+
+environment:
+  sdk: ^3.0.0
+  flutter: '>=3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  crypto: ^3.0.3
+  http: ^1.1.0
+  flutter_secure_storage: ^9.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
