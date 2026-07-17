@@ -4,12 +4,16 @@ Non-custody, Instant settlement payment gateway SDK for Flutter/Dart application
 
 ## Features
 
+- **Payment Checkout UI** — Drop-in payment sheet with Pay with Crypto + Pay with Card
+- **Card Payments** — Credit/Debit Card, Apple Pay, Google Pay via Crossmint on-ramp
+- **Crypto Payments** — Shows merchant wallet address + QR for direct transfer
 - Non-custodial wallet creation via Shamir's Secret Sharing
 - Direct split payments (atomic, on-chain)
 - Escrow payments with timeout protection
 - Wallet recovery with duress phrase support
 - Sandbox and live environment support
 - Automatic retry with exponential backoff
+- Custom base URL for local development
 
 ## Installation
 
@@ -17,7 +21,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  payrogen_sdk: ^0.1.0
+  payrogen_sdk: ^0.2.0
 ```
 
 ## Quick Start
@@ -25,7 +29,7 @@ dependencies:
 ```dart
 import 'package:payrogen_sdk/payrogen_sdk.dart';
 
-// 1. Initialize the SDK (authenticates with Gateway)
+// 1. Initialize the SDK
 final payrogen = await PayRogen.init(
   apiKey: 'ck_live_your_api_key_here',
   environment: PayRogenEnvironment.live,

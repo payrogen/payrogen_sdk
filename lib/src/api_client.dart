@@ -26,6 +26,7 @@ class ApiClient {
 
   /// Base URL determined by environment.
   String get baseUrl {
+    if (_baseUrlOverride != null) return _baseUrlOverride;
     switch (_environment) {
       case PayRogenEnvironment.sandbox:
         return 'https://sandbox-api.payrogen.com';
@@ -34,15 +35,20 @@ class ApiClient {
     }
   }
 
+  /// Optional override for the base URL (e.g., for local development).
+  final String? _baseUrlOverride;
+
   ApiClient({
     required String apiKey,
     required PayRogenEnvironment environment,
     http.Client? httpClient,
     OfflineRetryQueue? retryQueue,
+    String? baseUrl,
   })  : _apiKey = apiKey,
         _environment = environment,
         _httpClient = httpClient ?? http.Client(),
-        _retryQueue = retryQueue ?? OfflineRetryQueue();
+        _retryQueue = retryQueue ?? OfflineRetryQueue(),
+        _baseUrlOverride = baseUrl;
 
   /// Authenticate with the Gateway and cache the session token.
   Future<void> authenticate() async {

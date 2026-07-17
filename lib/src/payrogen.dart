@@ -47,6 +47,8 @@ class PayRogen {
   ///
   /// [apiKey] - The merchant's API key (e.g., 'ck_live_...' or 'ck_sandbox_...').
   /// [environment] - The target environment (sandbox or live).
+  /// [baseUrl] - Optional custom base URL for the gateway (e.g., 'http://10.0.2.2:8080'
+  ///   for local development on Android emulator).
   /// [secureStorage] - Optional secure storage for Share_A. If provided,
   ///   Share_A will be automatically stored during wallet creation and
   ///   retrieved transparently during transaction signing. (Requirement 9.3)
@@ -56,11 +58,13 @@ class PayRogen {
   static Future<PayRogen> init({
     required String apiKey,
     PayRogenEnvironment environment = PayRogenEnvironment.live,
+    String? baseUrl,
     SecureShareStorage? secureStorage,
   }) async {
     final apiClient = ApiClient(
       apiKey: apiKey,
       environment: environment,
+      baseUrl: baseUrl,
     );
 
     await apiClient.authenticate();

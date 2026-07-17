@@ -1,6 +1,7 @@
 /// Data models for the PayRogen SDK.
 library;
 
+export 'checkout.dart';
 export 'environment.dart';
 export 'external_wallet.dart';
 export 'fee_estimate.dart';

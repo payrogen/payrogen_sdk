@@ -1,54 +1,73 @@
 // ignore_for_file: avoid_print, unused_local_variable
 
+import 'package:flutter/material.dart';
 import 'package:payrogen_sdk/payrogen_sdk.dart';
 
-/// Example demonstrating PayRogen SDK usage.
+/// Example: PayRogen Payment Checkout integration in a Flutter app.
 ///
-/// This shows the basic workflow: initialize → create wallet → make payment.
-Future<void> main() async {
-  // 1. Initialize the SDK with your API key
-  final payrogen = await PayRogen.init(
-    apiKey: 'ck_sandbox_your_api_key_here',
-    environment: PayRogenEnvironment.sandbox,
-  );
+/// Shows how to accept payments using the PayRogen SDK with both
+/// crypto and card payment options.
+void main() {
+  runApp(const PayRogenExampleApp());
+}
 
-  // 2. Create a non-custodial wallet for your user
-  final wallet = await payrogen.createWallet(userId: 'user_123');
-  print('Wallet created: ${wallet.publicAddress}');
+/// Example app demonstrating PayRogen checkout.
+class PayRogenExampleApp extends StatelessWidget {
+  const PayRogenExampleApp({super.key});
 
-  // 3. Make a direct split payment
-  final payment = await payrogen.payDirect(
-    amount: 50.0,
-    currency: 'USDT',
-    from: wallet.publicAddress,
-    to: 'seller_wallet_address',
-    splits: {
-      'seller_wallet_address': 9000, // 90% to seller
-      'platform_wallet_address': 750, // 7.5% platform fee
-      'payrogen_treasury': 250, // 2.5% gateway fee
-    },
-  );
-  print('Payment signature: ${payment.signature}');
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'PayRogen Demo',
+      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
+      home: const CheckoutDemo(),
+    );
+  }
+}
 
-  // 4. Create an escrow payment (funds locked until delivery)
-  final escrow = await payrogen.payEscrow(
-    amount: 100.0,
-    currency: 'USDC',
-    payer: wallet.publicAddress,
-    serviceProvider: 'seller_wallet_address',
-    platform: 'platform_wallet_address',
-    splits: {
-      'seller_wallet_address': 9000,
-      'platform_wallet_address': 750,
-      'payrogen_treasury': 250,
-    },
-  );
-  print('Escrow created: ${escrow.escrowId}');
+/// Demo screen with a checkout button.
+class CheckoutDemo extends StatelessWidget {
+  const CheckoutDemo({super.key});
 
-  // 5. Recover a wallet (e.g., user logged in on new device)
-  final recovered = await payrogen.recoverWallet(
-    userId: 'user_123',
-    phrase: 'recovery phrase here',
-  );
-  print('Wallet recovered: ${recovered.publicAddress}');
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('PayRogen Checkout Demo')),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () => _showCheckout(context),
+          child: const Text('Pay \$25.00'),
+        ),
+      ),
+    );
+  }
+
+  /// Launch the PayRogen payment checkout sheet.
+  Future<void> _showCheckout(BuildContext context) async {
+    final result = await PaymentCheckoutSheet.show(
+      context: context,
+      config: const CheckoutConfig(
+        amount: 25.00,
+        currency: 'USD',
+        receiveToken: 'USDC',
+        merchantWalletAddress: 'Ae3DDxCkmPzf4AQA4nKaK64dQ2rowaUKzrsspb7NXRNR',
+        chain: 'solana',
+        description: 'Order #1234 - Coffee & Sandwich',
+        customerEmail: 'buyer@example.com',
+      ),
+      onCryptoPaymentVerified: (txSignature) async {
+        // Verify payment with your backend
+        print('Verifying crypto payment: $txSignature');
+        return true;
+      },
+      onCardOrderCreated: (orderId, clientSecret) async {
+        // Handle Crossmint card payment flow
+        print('Card order created: $orderId');
+      },
+    );
+
+    if (result != null && result.success) {
+      print('Payment successful via ${result.method.name}');
+    }
+  }
 }

@@ -14,4 +14,5 @@ export 'src/offline_retry_queue.dart';
 export 'src/secure_storage.dart';
 export 'src/transaction_signer.dart';
 export 'src/web3auth_client.dart';
+export 'src/widgets/payment_checkout_sheet.dart';
 export 'src/widgets/withdrawal_confirmation_screen.dart';
