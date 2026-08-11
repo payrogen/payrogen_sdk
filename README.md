@@ -8,7 +8,7 @@ Accept crypto and card payments with a single method call.
 - **Drop-in Checkout UI** — `payrogen.checkout()` shows a polished payment sheet (zero custom UI needed)
 - **Theme-aware** — Automatically adapts to your app's light/dark theme
 - **Pay with Crypto** — Wallet address display with copy button and QR support
-- **Pay with Card** — Visa, Mastercard, Apple Pay, Google Pay via Crossmint/Halliday
+- **Pay with Card** — Visa, Mastercard, Apple Pay, Google Pay
 - **Escrow Payments** — Lock funds until delivery confirmation with auto-release timeout
 - **Split Payments** — On-chain atomic fee splitting (e.g., 90% seller, 10% platform)
 - **Non-custodial Wallets** — Create wallets via Shamir's Secret Sharing
