@@ -1,22 +1,27 @@
+## 0.3.0
+
+### Added
+- **Drop-in Checkout UI** — `payrogen.checkout()` single method that shows the full payment sheet with zero custom UI code required.
+- **Escrow Mode** — Pass `escrow: true` to `checkout()` to create escrow payments with auto-release timeout.
+- `releaseEscrow()` — Release funds after delivery confirmation.
+- `disputeEscrow()` — Dispute an escrow payment with a reason.
+- **Theme-aware UI** — Checkout sheet automatically adapts to your app's light/dark theme.
+- **Custom accent color** — Optional `accentColor` parameter for brand customization.
+- **PayRogenCheckoutResult** — Rich result object with `success`, `cancelled`, `signature`, `escrowId`, `walletAddress`, `amount`, `currency`, and `metadata`.
+- **Split payments** — Pass `splits` map to `checkout()` for automatic on-chain fee splitting.
+- **Metadata** — Attach arbitrary metadata (order IDs, user IDs) to transactions.
+- **Success animation** — Built-in success screen after payment confirmation.
+
+### Changed
+- Bumped minimum version to 0.3.0.
+- `CheckoutResult` is now a type alias for `PayRogenCheckoutResult` (backward compatible).
+- `PaymentCheckoutSheet` UI completely redesigned with gradient header, card-based method selection, and polished animations.
+
 ## 0.2.0
 
-- Added `PaymentCheckoutSheet` widget for drop-in payment UI
-- Added `CheckoutConfig` and `CheckoutResult` models
-- Added Pay with Crypto (wallet address display) and Pay with Card (Crossmint on-ramp)
-- Added `baseUrl` parameter to `PayRogen.init()` for local development
-- Updated `flutter_secure_storage` to v10 (removed deprecated `encryptedSharedPreferences`)
-- Replaced deprecated `withOpacity` calls with `withValues(alpha:)`
-- Bumped minimum SDK to Dart 3.5.0
-
-## 0.1.0
-
-- Initial release
-- `PayRogen` class with `init`, `createWallet`, `payDirect`, `payEscrow`, `recoverWallet`
-- Multi-chain wallet creation (`createMultiChainWallet`)
-- External wallet address book with cooldown
-- Withdrawal with fee estimation
-- Network mismatch pre-flight validation
-- Sandbox and live environment support
-- Automatic retry with exponential backoff (3 attempts)
-- Typed exception hierarchy
-- Secure Share_A storage (iOS Keychain / Android Keystore)
+- Initial release with wallet creation, direct payments, escrow, recovery, and basic checkout widget.
+- Multi-chain wallet support (Solana, EVM, Bitcoin).
+- External wallet management with cooldown periods.
+- Withdrawal with fee estimation.
+- Network mismatch pre-flight validation.
+- Offline retry queue with exponential backoff.

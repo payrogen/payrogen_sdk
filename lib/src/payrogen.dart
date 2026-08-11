@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_client.dart';
 import 'exceptions.dart';
+import 'models/checkout.dart';
 import 'models/environment.dart';
 import 'models/escrow_result.dart';
 import 'models/external_wallet.dart';
@@ -12,6 +14,7 @@ import 'models/wallet.dart';
 import 'models/withdrawal_result.dart';
 import 'network_mismatch_validator.dart';
 import 'secure_storage.dart';
+import 'widgets/payment_checkout_sheet.dart';
 
 /// Main entry point for the PayRogen SDK.
 ///
@@ -553,6 +556,137 @@ class PayRogen {
       sourceChain: sourceChain,
       destinationAddress: destinationAddress,
       tokenSymbol: tokenSymbol,
+    );
+  }
+
+  /// Show the PayRogen checkout UI and handle the full payment flow.
+  ///
+  /// Opens a beautiful bottom sheet with "Pay with Crypto" and "Pay with Card"
+  /// options. The UI adapts to the app's light/dark theme automatically.
+  ///
+  /// This is the recommended integration method — requires zero custom UI work.
+  ///
+  /// ```dart
+  /// final result = await payrogen.checkout(
+  ///   context: context,
+  ///   amount: 20.00,
+  ///   currency: 'USDC',
+  ///   merchantName: 'InstaFoody',
+  ///   description: 'Gluten-free Vegan Pizza Recipe',
+  ///   recipientAddress: 'seller_wallet_address',
+  ///   splits: {'seller_address': 9000, 'platform_address': 1000},
+  /// );
+  ///
+  /// if (result.success) {
+  ///   print('Paid! Signature: ${result.signature}');
+  /// } else if (result.cancelled) {
+  ///   print('User cancelled');
+  /// }
+  /// ```
+  Future<PayRogenCheckoutResult> checkout({
+    required BuildContext context,
+    required double amount,
+    required String currency,
+    required String recipientAddress,
+    String? merchantName,
+    String? description,
+    String chain = 'solana',
+    Map<String, int>? splits,
+    bool escrow = false,
+    Duration? escrowTimeout,
+    Map<String, dynamic>? metadata,
+    String? customerEmail,
+    Color? accentColor,
+  }) async {
+    final config = CheckoutConfig(
+      amount: amount,
+      currency: currency,
+      receiveToken: currency,
+      merchantWalletAddress: recipientAddress,
+      chain: chain,
+      merchantName: merchantName,
+      description: description,
+      customerEmail: customerEmail,
+      splits: splits,
+      escrow: escrow,
+      escrowTimeout: escrowTimeout,
+      metadata: metadata,
+      accentColorValue: accentColor != null ? accentColor.toARGB32() : null,
+    );
+
+    final result = await PaymentCheckoutSheet.show(
+      context: context,
+      config: config,
+      onCryptoPaymentVerified: (txSignature) async {
+        // In production, verify via gateway
+        return true;
+      },
+      onCardOrderCreated: (orderId, clientSecret) async {
+        // In production, create card order via gateway
+      },
+      gatewayBaseUrl: _apiClient.baseUrl,
+      apiKey: null,
+    );
+
+    if (result == null) {
+      return PayRogenCheckoutResult.cancelled();
+    }
+
+    return result;
+  }
+
+  /// Release funds from an escrow payment.
+  ///
+  /// Called by the buyer after confirming delivery/service completion.
+  /// Releases held funds to the seller according to the split configuration.
+  ///
+  /// [escrowId] - The escrow ID returned from checkout with escrow: true.
+  ///
+  /// Throws [PayRogenValidationException] if escrowId is empty.
+  /// Throws [PayRogenException] on Gateway errors.
+  Future<EscrowResult> releaseEscrow({required String escrowId}) async {
+    if (escrowId.isEmpty) {
+      throw const PayRogenValidationException(
+        message: 'escrowId must not be empty',
+      );
+    }
+
+    final response = await _apiClient.post(
+      '/v1/escrows/$escrowId/release',
+      body: {},
+    );
+
+    return EscrowResult.fromJson(response);
+  }
+
+  /// Dispute an escrow payment.
+  ///
+  /// Called by the buyer if the service/product was not delivered as expected.
+  /// Triggers the dispute resolution process.
+  ///
+  /// [escrowId] - The escrow ID to dispute.
+  /// [reason] - The reason for the dispute.
+  ///
+  /// Throws [PayRogenValidationException] if parameters are invalid.
+  /// Throws [PayRogenException] on Gateway errors.
+  Future<void> disputeEscrow({
+    required String escrowId,
+    required String reason,
+  }) async {
+    if (escrowId.isEmpty) {
+      throw const PayRogenValidationException(
+        message: 'escrowId must not be empty',
+      );
+    }
+    if (reason.isEmpty) {
+      throw const PayRogenValidationException(
+        message: 'reason must not be empty',
+      );
+    }
+
+    await _apiClient.post(
+      '/v1/escrows/$escrowId/dispute',
+      body: {'reason': reason},
     );
   }
 

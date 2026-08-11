@@ -2,7 +2,7 @@ name: payrogen_sdk
 description: >-
   Non-custodial payment gateway SDK for Flutter. Wallet creation, split payments,
   escrow, card payments (Apple Pay, Google Pay), and crypto checkout.
-version: 0.2.0
+version: 0.3.0
 homepage: https://payrogen.com
 repository: https://github.com/payrogen/payrogen_sdk
 issue_tracker: https://github.com/payrogen/payrogen_sdk/issues

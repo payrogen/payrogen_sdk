@@ -3,15 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:payrogen_sdk/payrogen_sdk.dart';
 
-/// Example: PayRogen Payment Checkout integration in a Flutter app.
+/// Example: PayRogen drop-in checkout integration.
 ///
-/// Shows how to accept payments using the PayRogen SDK with both
-/// crypto and card payment options.
+/// The entire payment integration is just 5 lines of code.
 void main() {
   runApp(const PayRogenExampleApp());
 }
 
-/// Example app demonstrating PayRogen checkout.
 class PayRogenExampleApp extends StatelessWidget {
   const PayRogenExampleApp({super.key});
 
@@ -19,55 +17,139 @@ class PayRogenExampleApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'PayRogen Demo',
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-      home: const CheckoutDemo(),
+      // The SDK automatically adapts to your app's theme (light or dark)
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+        brightness: Brightness.light,
+      ),
+      darkTheme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+        brightness: Brightness.dark,
+      ),
+      home: const MarketplaceCheckout(),
     );
   }
 }
 
-/// Demo screen with a checkout button.
-class CheckoutDemo extends StatelessWidget {
-  const CheckoutDemo({super.key});
+/// Simulates a marketplace checkout (like InstaFoody).
+class MarketplaceCheckout extends StatefulWidget {
+  const MarketplaceCheckout({super.key});
+
+  @override
+  State<MarketplaceCheckout> createState() => _MarketplaceCheckoutState();
+}
+
+class _MarketplaceCheckoutState extends State<MarketplaceCheckout> {
+  PayRogen? _payrogen;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPayRogen();
+  }
+
+  Future<void> _initPayRogen() async {
+    _payrogen = await PayRogen.init(apiKey: 'ck_sandbox_your_key_here');
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('PayRogen Checkout Demo')),
+      appBar: AppBar(title: const Text('InstaFoody')),
       body: Center(
-        child: ElevatedButton(
-          onPressed: () => _showCheckout(context),
-          child: const Text('Pay \$25.00'),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Example 1: Simple payment
+            ElevatedButton(
+              onPressed: () => _simpleCheckout(context),
+              child: const Text('Buy Recipe - \$20.00'),
+            ),
+            const SizedBox(height: 16),
+
+            // Example 2: Escrow payment
+            ElevatedButton(
+              onPressed: () => _escrowCheckout(context),
+              child: const Text('Book Private Chef - \$50.00 (Escrow)'),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Launch the PayRogen payment checkout sheet.
-  Future<void> _showCheckout(BuildContext context) async {
-    final result = await PaymentCheckoutSheet.show(
+  /// Simple direct payment with split.
+  Future<void> _simpleCheckout(BuildContext context) async {
+    final payrogen = _payrogen;
+    if (payrogen == null) return;
+
+    final result = await payrogen.checkout(
       context: context,
-      config: const CheckoutConfig(
-        amount: 25.00,
-        currency: 'USD',
-        receiveToken: 'USDC',
-        merchantWalletAddress: 'Ae3DDxCkmPzf4AQA4nKaK64dQ2rowaUKzrsspb7NXRNR',
-        chain: 'solana',
-        description: 'Order #1234 - Coffee & Sandwich',
-        customerEmail: 'buyer@example.com',
-      ),
-      onCryptoPaymentVerified: (txSignature) async {
-        // Verify payment with your backend
-        print('Verifying crypto payment: $txSignature');
-        return true;
+      amount: 20.00,
+      currency: 'USDC',
+      merchantName: 'InstaFoody',
+      description: 'Gluten-free Vegan Pizza Recipe',
+      recipientAddress: 'SELLER_WALLET_ADDRESS_HERE',
+      splits: {
+        'SELLER_WALLET': 9000, // 90% to seller
+        'PLATFORM_WALLET': 1000, // 10% platform fee
       },
-      onCardOrderCreated: (orderId, clientSecret) async {
-        // Handle Crossmint card payment flow
-        print('Card order created: $orderId');
+      metadata: {
+        'order_id': 'order_123',
+        'buyer_id': 'user_456',
       },
     );
 
-    if (result != null && result.success) {
-      print('Payment successful via ${result.method.name}');
+    if (result.success) {
+      print('Payment successful! Signature: ${result.signature}');
+    } else if (result.cancelled) {
+      print('User cancelled checkout');
     }
+  }
+
+  /// Escrow payment with delivery confirmation.
+  Future<void> _escrowCheckout(BuildContext context) async {
+    final payrogen = _payrogen;
+    if (payrogen == null) return;
+
+    final result = await payrogen.checkout(
+      context: context,
+      amount: 50.00,
+      currency: 'USDC',
+      merchantName: 'InstaFoody',
+      description: 'Private Chef Booking - June 20',
+      recipientAddress: 'CHEF_WALLET_ADDRESS_HERE',
+      splits: {
+        'CHEF_WALLET': 8500, // 85% to chef
+        'PLATFORM_WALLET': 1500, // 15% platform fee
+      },
+      escrow: true,
+      escrowTimeout: const Duration(days: 7),
+      metadata: {
+        'booking_id': 'booking_789',
+        'service': 'private_chef',
+      },
+    );
+
+    if (result.success) {
+      print('Escrow created! ID: ${result.escrowId}');
+
+      // Later, when buyer confirms delivery:
+      // await payrogen.releaseEscrow(escrowId: result.escrowId!);
+
+      // Or if there's a dispute:
+      // await payrogen.disputeEscrow(
+      //   escrowId: result.escrowId!,
+      //   reason: 'Service not provided',
+      // );
+    }
+  }
+
+  @override
+  void dispose() {
+    _payrogen?.dispose();
+    super.dispose();
   }
 }
