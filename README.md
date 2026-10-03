@@ -19,7 +19,7 @@ Accept stablecoin USDC crypto and card (Visa, MasterCard) payments  with a singl
 
 ```yaml
 dependencies:
-  payrogen_sdk: ^0.4.23
+  payrogen_sdk: ^0.4.24
 ```
 
 ## Quick Start — Drop-in Checkout (Recommended)
@@ -249,6 +249,4 @@ Seller can export private key → import into Solflare → withdraw anytime
 
 ## Additional Information
 
-- [Documentation](https://docs.payrogen.com)
-- [API Reference](https://api.payrogen.com)
 - [Issues](https://github.com/payrogen/payrogen_sdk/issues)
