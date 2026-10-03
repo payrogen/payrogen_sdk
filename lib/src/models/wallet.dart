@@ -21,10 +21,12 @@ class Wallet {
 
   factory Wallet.fromJson(Map<String, dynamic> json) {
     return Wallet(
-      publicAddress: json['public_address'] as String,
-      userId: json['user_id'] as String,
-      shareA: json['share_a'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      publicAddress: (json['public_address'] as String?) ?? '',
+      userId: (json['user_id'] as String?) ?? '',
+      shareA: (json['share_a'] as String?) ?? '',
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
     );
   }
 

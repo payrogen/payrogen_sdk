@@ -97,7 +97,7 @@ void main() {
       final payrogen = await createAuthenticatedPayRogen(
         secureStorage: storage,
         additionalResponses: {
-          '/v1/wallets/create': http.Response(
+          '/api/v1/wallets/create': http.Response(
             jsonEncode({
               'public_address': 'So1anaAddr3ss',
               'user_id': 'user_123',
@@ -121,7 +121,7 @@ void main() {
       final now = DateTime.now().toIso8601String();
       final payrogen = await createAuthenticatedPayRogen(
         additionalResponses: {
-          '/v1/wallets/create': http.Response(
+          '/api/v1/wallets/create': http.Response(
             jsonEncode({
               'public_address': 'So1anaAddr3ss',
               'user_id': 'user_123',
@@ -144,7 +144,7 @@ void main() {
       final payrogen = await createAuthenticatedPayRogen(
         secureStorage: storage,
         additionalResponses: {
-          '/v1/wallets/create': http.Response(
+          '/api/v1/wallets/create': http.Response(
             jsonEncode({
               'public_address': 'So1anaAddr3ss',
               'user_id': 'user_456',
@@ -186,7 +186,7 @@ void main() {
       final payrogen = await createAuthenticatedPayRogen(
         secureStorage: storage,
         additionalResponses: {
-          '/v1/wallets/recover': http.Response(
+          '/api/v1/wallets/recover': http.Response(
             jsonEncode({
               'public_address': 'recovered_addr',
               'share_a': 'new_device_share_a',

@@ -31,7 +31,7 @@ Future<PayRogen> createAuthenticatedPayRogen({
   SecureShareStorage? secureStorage,
 }) async {
   final responses = <String, http.Response>{
-    '/v1/auth/session': http.Response(
+    '/api/v1/auth/session': http.Response(
       jsonEncode({'session_token': 'test_session_token'}),
       200,
     ),

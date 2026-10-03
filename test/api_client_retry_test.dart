@@ -15,13 +15,13 @@ void main() {
 
       final mockClient = http_testing.MockClient((request) async {
         requestCount++;
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           return http.Response(
             jsonEncode({'session_token': 'test_token'}),
             200,
           );
         }
-        if (request.url.path == '/v1/wallets/create') {
+        if (request.url.path == '/api/v1/wallets/create') {
           if (requestCount <= 2) {
             // First attempt on the actual request fails with network error
             throw const SocketException('Connection refused');
@@ -60,7 +60,7 @@ void main() {
       await apiClient.authenticate();
 
       final result = await apiClient.post(
-        '/v1/wallets/create',
+        '/api/v1/wallets/create',
         body: {'user_id': 'user_1'},
       );
 
@@ -72,7 +72,7 @@ void main() {
       var authDone = false;
 
       final mockClient = http_testing.MockClient((request) async {
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           authDone = true;
           return http.Response(
             jsonEncode({'session_token': 'test_token'}),
@@ -100,7 +100,7 @@ void main() {
       expect(authDone, true);
 
       expect(
-        () => apiClient.post('/v1/wallets/create', body: {'user_id': 'u1'}),
+        () => apiClient.post('/api/v1/wallets/create', body: {'user_id': 'u1'}),
         throwsA(isA<Exception>()),
       );
     });
@@ -111,7 +111,7 @@ void main() {
 
       final mockClient = http_testing.MockClient((request) async {
         requestCount++;
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           return http.Response(
             jsonEncode({'session_token': 'test_token'}),
             200,
@@ -142,7 +142,7 @@ void main() {
       await apiClient.authenticate();
 
       await expectLater(
-        () => apiClient.post('/v1/payments/direct', body: {}),
+        () => apiClient.post('/api/v1/payments/direct', body: {}),
         throwsA(isA<PayRogenValidationException>()),
       );
 
@@ -155,7 +155,7 @@ void main() {
 
       final mockClient = http_testing.MockClient((request) async {
         requestCount++;
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           return http.Response(
             jsonEncode({'session_token': 'test_token'}),
             200,
@@ -186,7 +186,7 @@ void main() {
       await apiClient.authenticate();
 
       await expectLater(
-        () => apiClient.post('/v1/payments/direct', body: {}),
+        () => apiClient.post('/api/v1/payments/direct', body: {}),
         throwsA(isA<PayRogenRateLimitException>()),
       );
 
@@ -201,13 +201,13 @@ void main() {
       String? capturedPhrase;
 
       final mockClient = http_testing.MockClient((request) async {
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           return http.Response(
             jsonEncode({'session_token': 'test_token'}),
             200,
           );
         }
-        if (request.url.path == '/v1/wallets/recover') {
+        if (request.url.path == '/api/v1/wallets/recover') {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           capturedPhrase = body['phrase'] as String?;
           // Gateway returns identical response regardless of duress
@@ -257,13 +257,13 @@ void main() {
       // Both normal and duress phrases get identical Gateway responses
       // The SDK should not differentiate between them in any way
       final mockClient = http_testing.MockClient((request) async {
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           return http.Response(
             jsonEncode({'session_token': 'test_token'}),
             200,
           );
         }
-        if (request.url.path == '/v1/wallets/recover') {
+        if (request.url.path == '/api/v1/wallets/recover') {
           return http.Response(
             jsonEncode({
               'public_address': 'addr_xyz',

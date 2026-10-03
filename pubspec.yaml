@@ -1,39 +1,48 @@
 name: payrogen_sdk
 description: >-
   Non-custodial payment gateway SDK for Flutter. Wallet creation, split payments,
-  escrow, card payments (Apple Pay, Google Pay), and crypto checkout.
-version: 0.3.0
+  escrow, card payments (Apple Pay, Google Pay), and Stablecoin crypto checkout.
+version: 0.4.24
 homepage: https://payrogen.com
 repository: https://github.com/payrogen/payrogen_sdk
 issue_tracker: https://github.com/payrogen/payrogen_sdk/issues
-documentation: https://docs.payrogen.com
+documentation: https://payrogen.com
 topics:
   - payments
-  - solana
-  - blockchain
+  - stablecoin
   - escrow
   - wallet
+  - crypto
 
 environment:
   sdk: ^3.5.0
   flutter: '>=3.22.0'
 
+# Declare supported platforms explicitly for pub.dev scoring.
 platforms:
   android:
   ios:
   web:
   macos:
-  windows:
   linux:
+  windows:
+
+flutter:
+  uses-material-design: true
 
 dependencies:
   flutter:
     sdk: flutter
   crypto: ^3.0.7
   http: ^1.6.0
-  flutter_secure_storage: ^10.3.1
+  flutter_secure_storage: ^11.0.0
+  qr_flutter: ^4.1.0
+  url_launcher: ^6.3.2
+  pointycastle: ^4.0.0
+  uuid: ^4.6.0
+  pinenacl: ^0.6.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  lints: ^6.0.0
+  flutter_lints: ^6.0.0

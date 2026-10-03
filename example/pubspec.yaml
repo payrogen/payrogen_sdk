@@ -1,0 +1,13 @@
+name: payrogen_sdk_example
+description: Example app demonstrating PayRogen SDK integration.
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  payrogen_sdk:
+    path: ../

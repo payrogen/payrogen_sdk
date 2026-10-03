@@ -17,6 +17,10 @@ enum CardProvider {
 
   /// Halliday hosted funding page (redirect/iframe).
   halliday,
+
+  /// Circle direct card payment (headless, client-side encryption).
+  /// Reference: https://developers.circle.com/circle-mint/docs/accept-card-payments-online
+  circle,
 }
 
 /// Configuration for a checkout session.
@@ -54,7 +58,7 @@ class CheckoutConfig {
   /// Crossmint client API key (required for Crossmint card payments).
   final String? crossmintClientKey;
 
-  /// Active card provider (crossmint or halliday). Determined by gateway config.
+  /// Active card provider. Defaults to circle (headless card-to-USDC).
   final CardProvider? cardProvider;
 
   /// Split configuration: map of wallet addresses to basis points (must sum to 10000).
@@ -84,7 +88,7 @@ class CheckoutConfig {
     this.customerEmail,
     this.allowedMethods = const [PaymentMethod.crypto, PaymentMethod.card],
     this.crossmintClientKey,
-    this.cardProvider,
+    this.cardProvider = CardProvider.circle,
     this.splits,
     this.escrow = false,
     this.escrowTimeout,
@@ -128,6 +132,9 @@ class PayRogenCheckoutResult {
   /// Halliday funding page URL (for Halliday card payments).
   final String? hallidayFundingUrl;
 
+  /// Circle payment ID (for Circle card payments).
+  final String? circlePaymentId;
+
   /// Error message if payment failed.
   final String? error;
 
@@ -146,6 +153,7 @@ class PayRogenCheckoutResult {
     this.crossmintOrderId,
     this.hallidayPaymentId,
     this.hallidayFundingUrl,
+    this.circlePaymentId,
     this.error,
     this.metadata,
   });

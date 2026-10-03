@@ -14,7 +14,7 @@ void main() {
       final now = DateTime.now().toIso8601String();
       final payrogen = await createAuthenticatedPayRogen(
         additionalResponses: {
-          '/v1/wallets/create': http.Response(
+          '/api/v1/wallets/create': http.Response(
             jsonEncode({
               'public_address': '0x1234567890abcdef1234567890abcdef12345678',
               'user_id': 'user_456',
@@ -41,13 +41,13 @@ void main() {
       Map<String, dynamic>? capturedBody;
 
       final mockClient = http_testing.MockClient((request) async {
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           return http.Response(
             jsonEncode({'session_token': 'token'}),
             200,
           );
         }
-        if (request.url.path == '/v1/wallets/create') {
+        if (request.url.path == '/api/v1/wallets/create') {
           capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
           return http.Response(
             jsonEncode({
@@ -95,7 +95,7 @@ void main() {
       final storage = InMemorySecureShareStorage();
       final payrogen = await createAuthenticatedPayRogen(
         additionalResponses: {
-          '/v1/wallets/create': http.Response(
+          '/api/v1/wallets/create': http.Response(
             jsonEncode({
               'public_address': 'addr_btc',
               'user_id': 'user_btc_1',
@@ -123,7 +123,7 @@ void main() {
       final cooldownUntil = now.add(const Duration(hours: 24));
       final payrogen = await createAuthenticatedPayRogen(
         additionalResponses: {
-          '/v1/external-wallets': http.Response(
+          '/api/v1/external-wallets': http.Response(
             jsonEncode({
               'id': 'ew_123',
               'label': 'Binance Hot Wallet',
@@ -201,7 +201,7 @@ void main() {
       final futureCooldown = now.add(const Duration(hours: 12));
       final payrogen = await createAuthenticatedPayRogen(
         additionalResponses: {
-          '/v1/external-wallets': http.Response(
+          '/api/v1/external-wallets': http.Response(
             jsonEncode({
               'external_wallets': [
                 {
@@ -242,14 +242,14 @@ void main() {
     test('removeExternalWallet sends DELETE request', () async {
       String? deletedPath;
       final mockClient = http_testing.MockClient((request) async {
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           return http.Response(
             jsonEncode({'session_token': 'token'}),
             200,
           );
         }
         if (request.method == 'DELETE' &&
-            request.url.path.startsWith('/v1/external-wallets/')) {
+            request.url.path.startsWith('/api/v1/external-wallets/')) {
           deletedPath = request.url.path;
           return http.Response(
             jsonEncode({'success': true}),
@@ -272,7 +272,7 @@ void main() {
 
       await payrogen.removeExternalWallet(walletId: 'ew_123');
 
-      expect(deletedPath, '/v1/external-wallets/ew_123');
+      expect(deletedPath, '/api/v1/external-wallets/ew_123');
       payrogen.dispose();
       mockClient.close();
     });
@@ -294,13 +294,13 @@ void main() {
       Map<String, dynamic>? capturedBody;
 
       final mockClient = http_testing.MockClient((request) async {
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           return http.Response(
             jsonEncode({'session_token': 'token'}),
             200,
           );
         }
-        if (request.url.path == '/v1/withdrawals') {
+        if (request.url.path == '/api/v1/withdrawals') {
           capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
           return http.Response(
             jsonEncode({
@@ -409,13 +409,13 @@ void main() {
   group('PayRogen - Fee Estimation', () {
     test('estimateWithdrawalFee returns fee breakdown', () async {
       final mockClient = http_testing.MockClient((request) async {
-        if (request.url.path == '/v1/auth/session') {
+        if (request.url.path == '/api/v1/auth/session') {
           return http.Response(
             jsonEncode({'session_token': 'token'}),
             200,
           );
         }
-        if (request.url.path == '/v1/withdrawals/fee-estimate') {
+        if (request.url.path == '/api/v1/withdrawals/fee-estimate') {
           return http.Response(
             jsonEncode({
               'network_fee': 0.00025,

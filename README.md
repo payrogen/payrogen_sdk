@@ -1,17 +1,17 @@
 # PayRogen SDK for Flutter
 
 Non-custodial, instant-settlement payment gateway SDK for Flutter applications.
-Accept crypto and card payments with a single method call.
+Accept stablecoin USDC crypto and card (Visa, MasterCard) payments  with a single method call.
 
 ## Features
 
 - **Drop-in Checkout UI** — `payrogen.checkout()` shows a polished payment sheet (zero custom UI needed)
 - **Theme-aware** — Automatically adapts to your app's light/dark theme
-- **Pay with Crypto** — Wallet address display with copy button and QR support
+- **Pay with Crypto** — Easy Crypto Payment with your Wallet and QR Code Support using Solflare or any Solana Compatible Wallet
 - **Pay with Card** — Visa, Mastercard, Apple Pay, Google Pay
 - **Escrow Payments** — Lock funds until delivery confirmation with auto-release timeout
-- **Split Payments** — On-chain atomic fee splitting (e.g., 90% seller, 10% platform)
-- **Non-custodial Wallets** — Create wallets via Shamir's Secret Sharing
+- **Split Payments** — On-chain atomic fee splitting (e.g., 93.5% seller, 5% platform, 1.5% gateway)
+- **Non-custodial Wallets** — Users own their private keys with full export capability
 - **Multi-chain** — Solana, Ethereum, Polygon, Arbitrum, Base, Bitcoin
 - **Sandbox + Live** — Solana Devnet for testing, Mainnet for production
 
@@ -19,7 +19,7 @@ Accept crypto and card payments with a single method call.
 
 ```yaml
 dependencies:
-  payrogen_sdk: ^0.3.0
+  payrogen_sdk: ^0.4.23
 ```
 
 ## Quick Start — Drop-in Checkout (Recommended)
@@ -41,8 +41,8 @@ final result = await payrogen.checkout(
   description: 'Gluten-free Vegan Pizza Recipe',
   recipientAddress: 'seller_wallet_address',
   splits: {
-    'seller_address': 9000,   // 90% to seller
-    'platform_address': 1000, // 10% platform fee
+    'seller_address': 9850,   // 98.5% to seller
+    'platform_address': 150,  // 1.5% platform fee
   },
 );
 
@@ -65,7 +65,7 @@ final result = await payrogen.checkout(
   recipientAddress: 'chef_wallet',
   escrow: true,
   escrowTimeout: Duration(days: 7),
-  splits: {'chef': 8500, 'platform': 1500},
+  splits: {'chef': 9850, 'platform': 150},
 );
 
 // Later, when buyer confirms delivery:
@@ -104,7 +104,7 @@ final payment = await payrogen.payDirect(
   currency: 'USDT',
   from: wallet.publicAddress,
   to: 'recipient_address',
-  splits: {'seller': 9000, 'platform': 1000},
+  splits: {'seller': 9850, 'platform': 150},
 );
 
 // Escrow payment
@@ -114,7 +114,7 @@ final escrow = await payrogen.payEscrow(
   payer: buyerAddress,
   serviceProvider: sellerAddress,
   platform: platformAddress,
-  splits: {'seller': 8500, 'platform': 1500},
+  splits: {'seller': 9850, 'platform': 150},
 );
 
 // Wallet recovery
@@ -122,6 +122,9 @@ final recovery = await payrogen.recoverWallet(
   userId: 'user_123',
   phrase: 'recovery phrase here',
 );
+
+// Export private key (user can import into Solflare or any Solana wallet)
+final privateKey = await payrogen.exportPrivateKey(userId: 'user_123');
 ```
 
 ## Customization
@@ -170,6 +173,79 @@ try {
 | macOS    | ✅ |
 | Windows  | ✅ |
 | Linux    | ✅ |
+
+## Marketplace Integration
+
+For marketplaces with multiple sellers (e.g., recipe stores, freelance platforms, food delivery):
+
+### 1. Seller Onboarding — Create a Wallet
+
+When a seller signs up or first lists a product, create their payment wallet:
+
+```dart
+// Called once when seller joins the platform
+final sellerWallet = await payrogen.createWallet(userId: 'seller_456');
+
+// Store this address in your backend database
+final sellerAddress = sellerWallet.publicAddress;
+// e.g., save to: sellers table → wallet_address column
+```
+
+The wallet is non-custodial — the seller owns it. Call `createWallet()` **once per seller** and cache the address.
+
+### 2. Buyer Checkout — Route Funds to Seller
+
+When a buyer purchases from a specific seller, pass that seller's wallet as the recipient:
+
+```dart
+// Fetch sellerWalletAddress from your database
+final sellerWalletAddress = await yourBackend.getSellerWallet(sellerId);
+
+final result = await payrogen.checkout(
+  context: context,
+  amount: 20.00,
+  currency: 'USDC',
+  merchantName: 'YourMarketplace',
+  description: 'Gluten-free Vegan Pizza Recipe',
+  recipientAddress: sellerWalletAddress, // Funds go HERE
+  splits: {
+    sellerWalletAddress: 9850,       // 98.5% to seller
+    yourPlatformWallet: 150,         // 1.5% platform commission
+  },
+  metadata: {'order_id': 'order_123', 'seller_id': 'seller_456'},
+);
+```
+
+**How the money flows:**
+1. Buyer pays 20 USDC
+2. PayRogen gateway fee (1.5%) is deducted: 0.30 USDC
+3. Remaining 19.70 USDC splits on-chain: 98.5% to seller, 1.5% to your platform
+
+### 3. Seller Exports Private Key
+
+Sellers can export their wallet's private key to use in Solflare or any Solana wallet:
+
+```dart
+// Seller taps "Export Wallet" in your app
+final privateKey = await payrogen.exportPrivateKey(userId: 'seller_456');
+
+// Show the key to the seller with a security warning
+// They can now import it into Solflare and manage funds independently
+```
+
+### 4. Complete Flow Summary
+
+```
+Seller signs up → createWallet() → store address in your DB
+                                  ↓
+Buyer checks out → checkout(recipientAddress: sellerAddress, splits: {...})
+                                  ↓
+Smart contract executes on-chain → gateway fee deducted → split applied
+                                  ↓
+Seller receives funds directly in their wallet
+                                  ↓
+Seller can export private key → import into Solflare → withdraw anytime
+```
 
 ## Additional Information
 

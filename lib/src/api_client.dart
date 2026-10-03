@@ -54,7 +54,7 @@ class ApiClient {
   Future<void> authenticate() async {
     final response = await _request(
       'POST',
-      '/v1/auth/session',
+      '/api/v1/auth/session',
       body: {'api_key': _apiKey},
       authenticated: false,
     );

@@ -43,7 +43,7 @@ void main() {
         final now = DateTime.now().toIso8601String();
         final payrogen = await createAuthenticatedPayRogen(
           additionalResponses: {
-            '/v1/wallets/create': http.Response(
+            '/api/v1/wallets/create': http.Response(
               jsonEncode({
                 'public_address': 'So1anaAddr3ss1234567890abcdefghijk',
                 'user_id': 'user_123',
@@ -79,7 +79,7 @@ void main() {
         final now = DateTime.now().toIso8601String();
         final payrogen = await createAuthenticatedPayRogen(
           additionalResponses: {
-            '/v1/payments/direct': http.Response(
+            '/api/v1/payments/direct': http.Response(
               jsonEncode({
                 'transaction_id': 'tx_abc123',
                 'signature': 'sig_xyz789',
@@ -117,13 +117,13 @@ void main() {
         Map<String, dynamic>? capturedBody;
 
         final mockClient = http_testing.MockClient((request) async {
-          if (request.url.path == '/v1/auth/session') {
+          if (request.url.path == '/api/v1/auth/session') {
             return http.Response(
               jsonEncode({'session_token': 'token'}),
               200,
             );
           }
-          if (request.url.path == '/v1/payments/direct') {
+          if (request.url.path == '/api/v1/payments/direct') {
             capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
             return http.Response(
               jsonEncode({
@@ -174,7 +174,7 @@ void main() {
         final timeout = now.add(const Duration(hours: 24));
         final payrogen = await createAuthenticatedPayRogen(
           additionalResponses: {
-            '/v1/payments/escrow': http.Response(
+            '/api/v1/payments/escrow': http.Response(
               jsonEncode({
                 'escrow_id': 'esc_abc123',
                 'transaction_id': 'tx_def456',
@@ -213,7 +213,7 @@ void main() {
       test('recovers a wallet and returns RecoveryResult', () async {
         final payrogen = await createAuthenticatedPayRogen(
           additionalResponses: {
-            '/v1/wallets/recover': http.Response(
+            '/api/v1/wallets/recover': http.Response(
               jsonEncode({
                 'public_address': 'recovered_address_123',
                 'share_a': 'new_share_a_data',
@@ -265,7 +265,7 @@ void main() {
         final now = DateTime.now().toIso8601String();
         final payrogen = await createAuthenticatedPayRogen(
           additionalResponses: {
-            '/v1/wallets/create': http.Response(
+            '/api/v1/wallets/create': http.Response(
               jsonEncode({
                 'public_address': 'addr_123',
                 'user_id': 'user_1',
@@ -291,7 +291,7 @@ void main() {
         final now = DateTime.now().toIso8601String();
         final payrogen = await createAuthenticatedPayRogen(
           additionalResponses: {
-            '/v1/payments/direct': http.Response(
+            '/api/v1/payments/direct': http.Response(
               jsonEncode({
                 'transaction_id': 'tx_1',
                 'signature': 'sig_1',

@@ -8,6 +8,7 @@ import 'models/environment.dart';
 import 'models/escrow_result.dart';
 import 'models/external_wallet.dart';
 import 'models/fee_estimate.dart';
+import 'wallet_key_derivation.dart';
 import 'models/payment_result.dart';
 import 'models/recovery_result.dart';
 import 'models/wallet.dart';
@@ -112,7 +113,7 @@ class PayRogen {
     }
 
     final response = await _apiClient.post(
-      '/v1/wallets/create',
+      '/api/v1/wallets/create',
       body: {'user_id': userId},
     );
 
@@ -189,7 +190,7 @@ class PayRogen {
     }
 
     final response = await _apiClient.post(
-      '/v1/payments/direct',
+      '/api/v1/payments/direct',
       body: body,
     );
 
@@ -257,7 +258,7 @@ class PayRogen {
     }
 
     final response = await _apiClient.post(
-      '/v1/payments/escrow',
+      '/api/v1/payments/escrow',
       body: body,
     );
 
@@ -294,7 +295,7 @@ class PayRogen {
     }
 
     final response = await _apiClient.post(
-      '/v1/wallets/recover',
+      '/api/v1/wallets/recover',
       body: {
         'user_id': userId,
         'phrase': phrase,
@@ -351,7 +352,7 @@ class PayRogen {
     }
 
     final response = await _apiClient.post(
-      '/v1/wallets/create',
+      '/api/v1/wallets/create',
       body: {'chain_type': chainType},
     );
 
@@ -402,7 +403,7 @@ class PayRogen {
     }
 
     final response = await _apiClient.post(
-      '/v1/external-wallets',
+      '/api/v1/external-wallets',
       body: {
         'label': label,
         'address': address,
@@ -420,7 +421,7 @@ class PayRogen {
   ///
   /// Throws [PayRogenException] on Gateway errors.
   Future<List<ExternalWallet>> listExternalWallets() async {
-    final response = await _apiClient.get('/v1/external-wallets');
+    final response = await _apiClient.get('/api/v1/external-wallets');
 
     final wallets = (response['external_wallets'] as List<dynamic>)
         .map((e) => ExternalWallet.fromJson(e as Map<String, dynamic>))
@@ -444,7 +445,7 @@ class PayRogen {
       );
     }
 
-    await _apiClient.delete('/v1/external-wallets/$walletId');
+    await _apiClient.delete('/api/v1/external-wallets/$walletId');
   }
 
   /// Initiate a withdrawal to a whitelisted external wallet.
@@ -482,7 +483,7 @@ class PayRogen {
     }
 
     final response = await _apiClient.post(
-      '/v1/withdrawals',
+      '/api/v1/withdrawals',
       body: {
         'external_wallet_id': externalWalletId,
         'amount': amount,
@@ -527,7 +528,7 @@ class PayRogen {
     }
 
     final response = await _apiClient.get(
-      '/v1/withdrawals/fee-estimate?chain_type=$chainType&token=$token&amount=$amount',
+      '/api/v1/withdrawals/fee-estimate?chain_type=$chainType&token=$token&amount=$amount',
     );
 
     return FeeEstimate.fromJson(response);
@@ -557,6 +558,58 @@ class PayRogen {
       destinationAddress: destinationAddress,
       tokenSymbol: tokenSymbol,
     );
+  }
+
+  /// Export the private key for a user's wallet.
+  ///
+  /// Reconstructs the full private key from Share_A (device) + Share_B (Web3Auth)
+  /// and returns it as a base58-encoded string that can be imported into
+  /// Solflare or any Solana wallet.
+  ///
+  /// **Security warning**: The private key grants full control of the wallet.
+  /// Show appropriate warnings in your UI before exposing this to users.
+  ///
+  /// [userId] - The user whose private key to export.
+  /// [email] - The user's email (used for deterministic key derivation).
+  /// [password] - The user's password (used for deterministic key derivation).
+  ///
+  /// If email and password are provided, derives the key client-side (non-custodial).
+  /// Otherwise falls back to the gateway export endpoint.
+  ///
+  /// Throws [PayRogenValidationException] if userId is empty.
+  Future<String> exportPrivateKey({
+    required String userId,
+    String? email,
+    String? password,
+  }) async {
+    if (userId.isEmpty) {
+      throw const PayRogenValidationException(
+        message: 'userId must not be empty',
+      );
+    }
+
+    // Prefer client-side deterministic derivation (non-custodial)
+    if (email != null && email.isNotEmpty && password != null && password.isNotEmpty) {
+      final wallet = WalletKeyDerivation.deriveKeypair(
+        email: email,
+        password: password,
+      );
+      return wallet.privateKeyBase58;
+    }
+
+    // Fallback: try gateway endpoint (custodial wallets)
+    try {
+      final response = await _apiClient.post(
+        '/api/v1/wallets/export-key',
+        body: {'user_id': userId},
+      );
+      return response['private_key'] as String;
+    } catch (e) {
+      throw const PayRogenException(
+        code: 'KEY_EXPORT_FAILED',
+        message: 'Cannot export key. Please provide email and password for key recovery.',
+      );
+    }
   }
 
   /// Show the PayRogen checkout UI and handle the full payment flow.
@@ -591,6 +644,7 @@ class PayRogen {
     String? merchantName,
     String? description,
     String chain = 'solana',
+    String? paymentCode,
     Map<String, int>? splits,
     bool escrow = false,
     Duration? escrowTimeout,
@@ -598,6 +652,41 @@ class PayRogen {
     String? customerEmail,
     Color? accentColor,
   }) async {
+    // Use provided payment code, or create an ephemeral checkout session on the gateway
+    String? paymentLinkCode = paymentCode;
+    if (paymentLinkCode == null) {
+      try {
+        final body = {
+          'amount': amount.toString(),
+          'token': currency,
+          'chain': chain,
+          'description': description ?? merchantName ?? 'Payment',
+        };
+        // Pass platform split config if provided in metadata
+        if (metadata != null) {
+          if (metadata['platform_wallet'] != null) {
+            body['platform_wallet'] = metadata['platform_wallet'].toString();
+          }
+          if (metadata['platform_fee_bps'] != null) {
+            body['platform_fee_bps'] = metadata['platform_fee_bps'].toString();
+          }
+        }
+        final response = await _apiClient.post(
+          '/api/v1/payments/create-checkout',
+          body: body,
+        );
+        // The response contains the short_code in the 'url' field as the last path segment
+        final url = response['url'] as String?;
+        if (url != null) {
+          paymentLinkCode = url.split('/').last;
+        }
+        paymentLinkCode ??= response['short_code'] as String?;
+      } catch (e) {
+        debugPrint('[PayRogen] Failed to create checkout session: $e');
+        // Card payments will fail without a payment code, but crypto still works via QR
+      }
+    }
+
     final config = CheckoutConfig(
       amount: amount,
       currency: currency,
@@ -607,19 +696,31 @@ class PayRogen {
       merchantName: merchantName,
       description: description,
       customerEmail: customerEmail,
+      orderId: paymentLinkCode,
       splits: splits,
       escrow: escrow,
       escrowTimeout: escrowTimeout,
       metadata: metadata,
-      accentColorValue: accentColor != null ? accentColor.toARGB32() : null,
+      accentColorValue: accentColor?.toARGB32(),
     );
+
+    if (!context.mounted) return PayRogenCheckoutResult.cancelled();
 
     final result = await PaymentCheckoutSheet.show(
       context: context,
       config: config,
-      onCryptoPaymentVerified: (txSignature) async {
-        // In production, verify via gateway
-        return true;
+      onCryptoPaymentVerified: (pollAttempt) async {
+        // Poll the gateway's payment status endpoint to verify on-chain confirmation
+        try {
+          final response = await _apiClient.get(
+            '/api/v1/pay/${config.orderId ?? "checkout"}/status',
+          );
+          final paid = response['paid'] as bool? ?? false;
+          return paid;
+        } catch (_) {
+          // Network error or endpoint not found — payment not confirmed yet
+          return false;
+        }
       },
       onCardOrderCreated: (orderId, clientSecret) async {
         // In production, create card order via gateway
@@ -652,7 +753,7 @@ class PayRogen {
     }
 
     final response = await _apiClient.post(
-      '/v1/escrows/$escrowId/release',
+      '/api/v1/escrows/$escrowId/release',
       body: {},
     );
 
@@ -685,7 +786,7 @@ class PayRogen {
     }
 
     await _apiClient.post(
-      '/v1/escrows/$escrowId/dispute',
+      '/api/v1/escrows/$escrowId/dispute',
       body: {'reason': reason},
     );
   }

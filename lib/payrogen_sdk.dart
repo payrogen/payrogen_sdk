@@ -7,6 +7,7 @@ library;
 
 export 'src/payrogen.dart';
 export 'src/exceptions.dart';
+export 'src/circle_service.dart';
 export 'src/in_memory_secure_share_storage.dart';
 export 'src/models/models.dart';
 export 'src/network_mismatch_validator.dart';
@@ -14,5 +15,7 @@ export 'src/offline_retry_queue.dart';
 export 'src/secure_storage.dart';
 export 'src/transaction_signer.dart';
 export 'src/web3auth_client.dart';
+export 'src/widgets/circle_card_form.dart';
 export 'src/widgets/payment_checkout_sheet.dart';
 export 'src/widgets/withdrawal_confirmation_screen.dart';
+export 'src/wallet_key_derivation.dart';

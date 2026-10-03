@@ -301,7 +301,7 @@ void main() {
         () async {
       final payrogen = await createAuthenticatedPayRogen(
         additionalResponses: {
-          '/v1/payments/direct': _mockPaymentResponse(),
+          '/api/v1/payments/direct': _mockPaymentResponse(),
         },
       );
 

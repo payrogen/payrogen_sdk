@@ -1,7 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/checkout.dart';
+import 'circle_card_form.dart';
 
 /// A production-ready payment checkout bottom sheet widget.
 ///
@@ -82,6 +87,12 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
   _CheckoutStep _step = _CheckoutStep.methodSelection;
   bool _isProcessing = false;
   String? _error;
+  String? _cardPaymentId;
+  String? _cryptoSignature;
+  // Guards against starting more than one polling loop. Polling begins as soon as the
+  // crypto screen is shown so payments are detected whether the customer taps
+  // "Connect Solflare" (in-app wallet launch) OR scans the QR with a separate device.
+  bool _pollStarted = false;
 
   CheckoutConfig get config => widget.config;
 
@@ -91,7 +102,8 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
     if (config.accentColorValue != null) {
       return Color(config.accentColorValue!);
     }
-    return Theme.of(context).primaryColor;
+    // PayRogen brand blue
+    return const Color(0xFF4F46E5);
   }
 
   Color get _surfaceColor =>
@@ -101,13 +113,13 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
       _isDark ? const Color(0xFF252640) : const Color(0xFFF5F5F7);
 
   Color get _borderColor =>
-      _isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.08);
+      _isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08);
 
   Color get _textPrimary =>
       _isDark ? Colors.white : const Color(0xFF1A1B2E);
 
   Color get _textSecondary =>
-      _isDark ? Colors.white.withOpacity(0.6) : Colors.black.withOpacity(0.5);
+      _isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.5);
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +134,7 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 20,
                 offset: const Offset(0, -4),
               ),
@@ -137,7 +149,7 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: _textSecondary.withOpacity(0.3),
+                    color: _textSecondary.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -180,12 +192,12 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            _accentColor,
-            _accentColor.withBlue((_accentColor.blue + 40).clamp(0, 255)),
+            Color(0xFF4F46E5), // PayRogen indigo
+            Color(0xFF7C3AED), // PayRogen violet
           ],
         ),
         borderRadius: BorderRadius.circular(20),
@@ -195,7 +207,7 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
           Text(
             config.escrow ? 'Escrow Payment' : 'Payment Request',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -213,7 +225,7 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
           Text(
             '${config.chain[0].toUpperCase()}${config.chain.substring(1)} Network',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               fontSize: 13,
             ),
           ),
@@ -245,8 +257,8 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
           _buildMethodCard(
             icon: Icons.account_balance_wallet_rounded,
             title: 'Pay with Crypto',
-            subtitle: 'Connect Phantom or Solflare to pay',
-            onTap: () => setState(() => _step = _CheckoutStep.cryptoPayment),
+            subtitle: 'Connect Solflare to pay',
+            onTap: () => _openCryptoPayment(),
           ),
 
         if (config.allowedMethods.contains(PaymentMethod.card)) ...[
@@ -288,7 +300,7 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: _accentColor.withOpacity(0.12),
+                color: _accentColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(icon, color: _accentColor, size: 24),
@@ -324,6 +336,14 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
   // ─── Crypto Payment ───────────────────────────────────────────────────────
 
   Widget _buildCryptoPayment() {
+    // Solana Pay Transaction Request URL — points to the merchant-ui's /api/pay/[code]/solana-tx
+    // endpoint which builds the actual smart contract instruction (with splits + gateway fee).
+    // IMPORTANT: This must point to the merchant-ui (merchant.payrogen.com), NOT the gateway API.
+    // Format: solana:https://<merchant-ui-host>/api/pay/<code>/solana-tx
+    const merchantUiUrl = 'https://merchant.payrogen.com';
+    final payCode = config.orderId ?? 'checkout';
+    final solanaPayUrl = 'solana:$merchantUiUrl/api/pay/$payCode/solana-tx';
+
     return Column(
       key: const ValueKey('crypto_payment'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,112 +354,270 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
         _buildPaymentHeader(),
         const SizedBox(height: 24),
 
-        // Wallet address section
+        // Connect wallet buttons
         Text(
-          'Send to this ${config.chain} address:',
-          style: TextStyle(color: _textSecondary, fontSize: 13),
+          'Connect your wallet to pay ${config.amount.toStringAsFixed(2)} ${config.receiveToken}',
+          style: TextStyle(color: _textPrimary, fontSize: 14),
+          textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: _cardColor,
-            border: Border.all(color: _borderColor),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  config.merchantWalletAddress,
-                  style: TextStyle(
-                    color: _textPrimary,
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(
-                    ClipboardData(text: config.merchantWalletAddress),
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Address copied'),
-                      backgroundColor: _accentColor,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _accentColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.copy_rounded, size: 18, color: _accentColor),
-                ),
-              ),
-            ],
-          ),
-        ),
-
         const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.orange.withOpacity(0.2)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.warning_amber_rounded, size: 18, color: Colors.orange[700]),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Send only ${config.receiveToken} on the ${config.chain} network. Wrong token or network may result in permanent loss.',
-                  style: TextStyle(
-                    color: Colors.orange[800],
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
+
+        _buildWalletButton(
+          label: 'Connect Solflare',
+          onTap: () => _launchWallet(),
         ),
 
         const SizedBox(height: 24),
 
+        // Divider with "Or scan with mobile wallet"
+        Row(
+          children: [
+            Expanded(child: Divider(color: _borderColor)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                'Or scan with your mobile wallet',
+                style: TextStyle(color: _textSecondary, fontSize: 12),
+              ),
+            ),
+            Expanded(child: Divider(color: _borderColor)),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        // QR Code — Solana Pay Transaction Request URL (routes through smart contract)
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _borderColor),
+            ),
+            child: QrImageView(
+              data: solanaPayUrl,
+              version: QrVersions.auto,
+              size: 200,
+              backgroundColor: Colors.white,
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: Colors.black,
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+        Center(
+          child: Text(
+            'Scan with Solflare or any Solana Pay compatible wallet',
+            style: TextStyle(color: _textSecondary, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+        ),
+
         if (_error != null)
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              _error!,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+            padding: const EdgeInsets.only(top: 16),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                _error!,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+              ),
             ),
           ),
 
-        _buildPrimaryButton(
-          label: "I've Sent the Payment",
-          onPressed: _isProcessing ? null : _handleCryptoConfirm,
-          isLoading: _isProcessing,
-        ),
+        // Polling status
+        if (_isProcessing)
+          Padding(
+            padding: const EdgeInsets.only(top: 20),
+            child: Center(
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: _accentColor,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Waiting for transaction confirmation...',
+                    style: TextStyle(color: _textSecondary, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
         const SizedBox(height: 32),
+        _buildSecuredByFooter(),
+        const SizedBox(height: 16),
       ],
     );
+  }
+
+  Widget _buildWalletButton({
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF7C3AED), // PayRogen violet
+              Color(0xFF9333EA), // Purple
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Enter the crypto payment screen and immediately begin polling for on-chain
+  /// confirmation. Polling must start here (not only after launching a wallet) so a
+  /// payment made by scanning the QR with a SEPARATE device is still detected and the
+  /// success screen is shown. _startPaymentPolling is idempotent, so launching Solflare
+  /// afterwards does not start a second loop.
+  void _openCryptoPayment() {
+    setState(() => _step = _CheckoutStep.cryptoPayment);
+    _startPaymentPolling();
+  }
+
+  Future<void> _launchWallet() async {
+    setState(() => _error = null);
+
+    // The Solana Pay Transaction Request URL — must point to merchant-ui
+    const merchantUiUrl = 'https://merchant.payrogen.com';
+    final payCode = config.orderId ?? 'checkout';
+    final txRequestUrl = '$merchantUiUrl/api/pay/$payCode/solana-tx';
+
+    // Solflare registers as a handler for `solana:` URIs on mobile.
+    // The Solana Pay Transaction Request format is: solana:<https-url>
+    // When launched, the wallet fetches the transaction from the URL and prompts signing.
+    // Solflare universal link
+    final uri = Uri.parse('https://solflare.com/ul/v1/pay?link=${Uri.encodeComponent(txRequestUrl)}');
+
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        setState(() => _error = 'Solflare app not found. Please install it first.');
+        return;
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Could not open Solflare. Is it installed?');
+      }
+      return;
+    }
+
+    // Start polling for payment confirmation AFTER wallet is launched
+    _startPaymentPolling();
+  }
+
+  void _startPaymentPolling() {
+    // Idempotent: only ever run one polling loop, no matter how many entry points
+    // (crypto screen shown, wallet launched, retry) call this.
+    if (_pollStarted) return;
+    _pollStarted = true;
+    if (mounted) {
+      setState(() => _isProcessing = true);
+    } else {
+      _isProcessing = true;
+    }
+    _pollForPayment();
+  }
+
+  Future<void> _pollForPayment() async {
+    // Poll every 3 seconds for up to 2 minutes
+    const maxAttempts = 40;
+    const pollInterval = Duration(seconds: 3);
+
+    for (var i = 0; i < maxAttempts; i++) {
+      if (!mounted || _step == _CheckoutStep.success) return;
+
+      await Future.delayed(pollInterval);
+
+      if (!mounted) return;
+
+      try {
+        if (widget.onCryptoPaymentVerified != null) {
+          final verified = await widget.onCryptoPaymentVerified!('poll_$i');
+          if (verified && mounted) {
+            // Fetch the transaction signature from the gateway
+            try {
+              final payCode = config.orderId ?? 'checkout';
+              final gatewayUrl = widget.gatewayBaseUrl ?? 'https://sandbox-api.payrogen.com';
+              final statusUri = Uri.parse('$gatewayUrl/api/v1/pay/$payCode/status');
+              final resp = await http.get(statusUri);
+              if (resp.statusCode == 200) {
+                final data = jsonDecode(resp.body) as Map<String, dynamic>;
+                _cryptoSignature = data['transaction_signature'] as String?;
+              }
+            } catch (_) {
+              // Ignore — signature fetch is best-effort
+            }
+            setState(() {
+              _isProcessing = false;
+              _step = _CheckoutStep.success;
+            });
+            return;
+          }
+        }
+        // If no callback provided, we can't verify — keep polling
+      } catch (_) {
+        // Continue polling on errors
+      }
+    }
+
+    // Timed out — payment was NOT confirmed within the window. Allow the customer to
+    // resume polling (e.g. a QR payment that is still settling) by resetting the guard
+    // so a subsequent action can restart the loop.
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+        _pollStarted = false;
+        _error = 'Still waiting for your payment to confirm. If you have paid, '
+            'tap "Connect Solflare" or wait a moment and it will update automatically.';
+      });
+    } else {
+      _pollStarted = false;
+    }
   }
 
   // ─── Card Payment ─────────────────────────────────────────────────────────
 
   Widget _buildCardPayment() {
+    final gatewayBaseUrl = widget.gatewayBaseUrl ?? 'https://pay.payrogen.com';
+    final payCode = config.orderId ?? 'checkout';
+
     return Column(
       key: const ValueKey('card_payment'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,61 +628,22 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
         _buildPaymentHeader(),
         const SizedBox(height: 24),
 
-        // Info card
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _cardColor,
-            border: Border.all(color: _borderColor),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.security_rounded, size: 18, color: _accentColor),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      config.cardProvider == CardProvider.halliday
-                          ? 'Secure payment powered by Halliday'
-                          : 'Secure payment powered by Crossmint',
-                      style: TextStyle(
-                        color: _textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Supports Visa, Mastercard, Apple Pay, and Google Pay. Your card details are processed securely and never stored.',
-                style: TextStyle(color: _textSecondary, fontSize: 12, height: 1.4),
-              ),
-            ],
-          ),
+        // Inline Circle card form — collects card details and processes payment
+        CircleCardForm(
+          gatewayBaseUrl: gatewayBaseUrl,
+          paymentCode: payCode,
+          amount: config.amount.toStringAsFixed(2),
+          email: config.customerEmail ?? '',
+          accentColor: _accentColor,
+          onPaymentComplete: (result) {
+            _cardPaymentId = result.paymentId;
+            setState(() => _step = _CheckoutStep.success);
+          },
+          onPaymentError: (error) {
+            setState(() => _error = error);
+          },
         ),
 
-        const SizedBox(height: 24),
-
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              _error!,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-            ),
-          ),
-
-        _buildPrimaryButton(
-          label: 'Continue to Payment',
-          onPressed: _isProcessing ? null : _handleCardPayment,
-          isLoading: _isProcessing,
-        ),
         const SizedBox(height: 32),
       ],
     );
@@ -521,7 +660,7 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
           width: 80,
           height: 80,
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.12),
+            color: Colors.green.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
           child: const Icon(
@@ -561,6 +700,8 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
               method: _step == _CheckoutStep.cryptoPayment
                   ? PaymentMethod.crypto
                   : PaymentMethod.card,
+              signature: _cardPaymentId ?? _cryptoSignature,
+              circlePaymentId: _cardPaymentId,
               amount: config.amount,
               currency: config.receiveToken,
               metadata: config.metadata,
@@ -617,7 +758,7 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
         style: ElevatedButton.styleFrom(
           backgroundColor: _accentColor,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: _accentColor.withOpacity(0.5),
+          disabledBackgroundColor: _accentColor.withValues(alpha: 0.5),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -657,52 +798,6 @@ class _PaymentCheckoutSheetState extends State<PaymentCheckoutSheet>
         ],
       ),
     );
-  }
-
-  // ─── Handlers ─────────────────────────────────────────────────────────────
-
-  Future<void> _handleCryptoConfirm() async {
-    setState(() {
-      _isProcessing = true;
-      _error = null;
-    });
-
-    try {
-      if (widget.onCryptoPaymentVerified != null) {
-        final verified =
-            await widget.onCryptoPaymentVerified!('pending_verification');
-        if (verified) {
-          setState(() => _step = _CheckoutStep.success);
-        } else {
-          setState(() =>
-              _error = 'Payment not yet confirmed. Please wait and try again.');
-        }
-      } else {
-        setState(() => _step = _CheckoutStep.success);
-      }
-    } catch (e) {
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
-  }
-
-  Future<void> _handleCardPayment() async {
-    setState(() {
-      _isProcessing = true;
-      _error = null;
-    });
-
-    try {
-      if (widget.onCardOrderCreated != null) {
-        await widget.onCardOrderCreated!('pending', '');
-      }
-      setState(() => _step = _CheckoutStep.success);
-    } catch (e) {
-      setState(() => _error = 'Card payment failed: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
   }
 }
 
